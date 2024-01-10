@@ -1,0 +1,97 @@
+# Domo-Québec
+
+# Écoles fermées
+# Remplacez les données suivantes par les vôtres
+# https://github.com/domo-quebec/fermeture-ecoles/blob/main/list.md
+#
+# ID de l'école ##SCHOOLID##
+# Nom de l'école ##SCHOOLNAME##
+
+automation:
+  alias: Écoles - Rafraichir les données
+  mode: single
+  trigger:
+    - platform: time_pattern
+      minutes: /5
+  condition:
+    - condition: time
+      after: "05:00:00"
+      before: "08:00:00"
+      weekday:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+    - condition: template
+      value_template: "{{ now().month in [10,11,12,1,2,3,4] }}"
+  action:
+    - service: homeassistant.update_entity
+      target:
+        entity_id: sensor.ecoles_fermees_data
+      data: {}
+
+sensor:
+  - platform: rest
+    resource: "https://www.tvanouvelles.ca/api/schools/closed"
+    name: "Écoles Fermées data"
+    unique_id: ecoles_fermees_data
+    value_template: "OK"
+    json_attributes:
+      - result
+      - lastUpdated
+    scan_interval: 86400
+    # Ne pas changer le scan interval, les données sont rafraichies via l'automatisation
+template:
+  sensor:
+    - name: ##SCHOOLNAME##
+      unique_id: ecole_##SCHOOLID##_fermeture
+      state: >
+        {% set school_id = ##SCHOOLID## %}
+        {% set value_json = (state_attr('sensor.ecoles_fermees_data', 'result')) %}
+        {% set schools = (value_json.institutions | selectattr('id', 'equalto', school_id) | list) %}
+        {% set school = schools[0] if schools else None %}
+        {% if school and school.closures %}
+         {% set latest_closure = school.closures | first %}
+         {% if latest_closure.datetime_start <= now().isoformat() and latest_closure.datetime_end >= now().isoformat() %}
+           Fermée
+         {% else %}
+           Ouverte
+         {% endif %}
+        {% else %}
+           Ouverte
+        {% endif %}
+      icon: >
+        {% if is_state('sensor.ecole_##SCHOOLID##_fermeture', 'Fermée')  %}
+          mdi:snowman
+        {% elif is_state('sensor.ecole_##SCHOOLID##_fermeture', 'Ouverte')  %}
+          mdi:town-hall
+        {% endif %}
+      attributes:
+        message: >
+          {% set school_id = ##SCHOOLID## %}
+          {% set value_json = (state_attr('sensor.ecoles_fermees_data', 'result')) %}
+          {% set schools = (value_json.institutions | selectattr('id', 'equalto', school_id) | list) %}
+          {% set school = schools[0] if schools else None %}
+          {% if school and school.closures %}
+            {% set latest_closure = school.closures | first %}
+            {% if latest_closure.datetime_start <= now().isoformat() and latest_closure.datetime_end >= now().isoformat() %}
+                {{ latest_closure.message }}
+            {% endif %}
+          {% endif %}
+        information: >
+          {% set school_id = ##SCHOOLID## %}
+          {% set value_json = (state_attr('sensor.ecoles_fermees_data', 'result')) %}
+          {% set schools = (value_json.institutions | selectattr('id', 'equalto', school_id) | list) %}
+          {% set school = schools[0] if schools else None %}
+          {% if school and school.closures %}
+            {% set latest_closure = school.closures | first %}
+            {% if latest_closure.datetime_start <= now().isoformat() and latest_closure.datetime_end >= now().isoformat() %}
+                {{ latest_closure.closure_informations | map(attribute='name') | list | tojson }}
+            {% endif %}
+          {% endif %}
+        last_updated: >
+          {% set date_string = (state_attr('sensor.ecoles_fermees_data', 'lastUpdated')) %}
+          {% set date_format = "%d-%m-%Y %H:%M:%S" %}
+          {{ strptime(date_string, date_format) }}
+        attribution: Données fournies par TVA Nouvelles
