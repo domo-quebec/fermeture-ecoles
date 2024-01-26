@@ -7,6 +7,16 @@
 # ID de l'école ##SCHOOLID##
 # Nom de l'école ##SCHOOLNAME##
 
+# Pour éviter les erreurs lors de jour de tempête, on désactive
+# l'enregistrement de l'historique pour le sensor de données brute.
+recorder:
+  exclude:
+    entities:
+      - sensor.ecoles_fermees_data
+
+# Les données sont rafraichies toutes les 5 minutes entre 5h et 8h du lundi au vendredi
+# Vous pouvez remplacer la condition par l'état d'un capteur workday (https://www.home-assistant.io/integrations/workday/)
+
 automation:
   alias: Écoles - Rafraichir les données
   mode: single
